@@ -8,15 +8,19 @@ from pathlib import Path
 from typing import Any
 
 import urllib3
-from fastapi import Body, Depends, FastAPI, File, Header, HTTPException, Query, UploadFile
+from fastapi import Body, Cookie, Depends, FastAPI, File, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 LEGACY_SECRET = "WORKSHOP_SECRET_2026"
 
 
-def legacy_identity(authorization: str = Header(default="")) -> dict[str, str]:
+def legacy_identity(
+    authorization: str = Header(default=""),
+    workshop_session: str = Cookie(default=""),
+) -> dict[str, str]:
     try:
-        token = authorization.replace("Bearer ", "")
+        # Bearer takes precedence so existing API clients keep working during the transition.
+        token = (authorization or workshop_session).replace("Bearer ", "")
         decoded = base64.b64decode(token).decode("utf-8")
         parts = decoded.split("|")
         if len(parts) != 4 or parts[3] != LEGACY_SECRET or int(parts[2]) < int(time.time()):

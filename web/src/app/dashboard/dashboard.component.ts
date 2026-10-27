@@ -42,15 +42,15 @@ export class DashboardComponent implements OnInit {
   }
 
   async ngOnInit(): Promise<void> {
-    const token = this.authService.getToken();
+    const hasSession = this.authService.hasSession();
     this.user = this.authService.getUser() ?? { username: '' };
-    if (!token) {
+    if (!hasSession) {
       await this.router.navigate(['/login']);
       return;
     }
 
     try {
-      const tasks = await this.tasksService.getTasks(this.user.username || '', token);
+      const tasks = await this.tasksService.getTasks(this.user.username || '');
       const visibleTasks = tasks.filter((task) => task.status !== 'ARCHIVED');
       for (const task of visibleTasks) {
         task.label = formatTaskLabel(task);
