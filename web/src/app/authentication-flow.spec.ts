@@ -60,7 +60,6 @@ describe('authentication flow characterization', () => {
     storedValues.set('workshop_preferences', JSON.stringify({ compact: true }));
     vi.mocked(axios.post).mockResolvedValue({
       data: {
-        token: 'test-token',
         user: { username: 'student', displayName: 'Workshop Student' }
       }
     } as never);
@@ -72,11 +71,11 @@ describe('authentication flow characterization', () => {
 
     expect(login.preferences).toEqual({ theme: 'light', showTips: true, compact: true });
     expect(axios.post).toHaveBeenCalledWith(
-      'http://localhost:8080/auth/login',
+      '/auth/login',
       { username: 'student', password: 'Workshop123!', client: 'angular-workshop' },
       { timeout: 5000 }
     );
-    expect(storedValues.get('workshop_token')).toBe('test-token');
+    expect(storedValues.has('workshop_token')).toBe(false);
     expect(storedValues.get('workshop_user')).toBe(JSON.stringify({ username: 'student', displayName: 'Workshop Student' }));
     expect(storedValues.get('workshop_preferences')).toBe(JSON.stringify(login.preferences));
     expect(router.navigate).toHaveBeenCalledWith(['/dashboard']);
@@ -102,7 +101,7 @@ describe('authentication flow characterization', () => {
     expect(axios.post).not.toHaveBeenCalled();
   });
 
-  it('shows the missing-token response without saving a session', async () => {
+  it('saves only the user after login because the session credential is an HttpOnly cookie', async () => {
     vi.mocked(axios.post).mockResolvedValue({ data: { user: { username: 'student' } } } as never);
     const login = createLoginComponent();
     login.username = 'student';
@@ -110,9 +109,10 @@ describe('authentication flow characterization', () => {
 
     await login.login();
 
-    expect(login.message).toEqual({ title: 'El backend respondió sin token.' });
+    expect(login.message).toBeNull();
     expect(storedValues.has('workshop_token')).toBe(false);
-    expect(router.navigate).not.toHaveBeenCalled();
+    expect(storedValues.get('workshop_user')).toBe(JSON.stringify({ username: 'student' }));
+    expect(router.navigate).toHaveBeenCalledWith(['/dashboard']);
   });
 
   it('uses default preferences when saved preferences are invalid JSON', () => {
@@ -174,7 +174,7 @@ describe('authentication flow characterization', () => {
     await login.login();
 
     expect(axios.post).toHaveBeenCalledWith(
-      'http://localhost:8080/auth/login',
+      '/auth/login',
       { username: 'student', password: 'password', client: 'angular-workshop' },
       { timeout: 5000 }
     );
@@ -194,7 +194,7 @@ describe('authentication flow characterization', () => {
     expect(template).toContain('{{ message.detail }}');
   });
 
-  it('loads tasks with the stored bearer token and preserves filtering and ordering', async () => {
+  it('loads tasks with the session cookie and preserves filtering and ordering', async () => {
     storedValues.set('workshop_token', 'test-token');
     storedValues.set('workshop_user', JSON.stringify({ username: 'student' }));
     vi.mocked(axios.get).mockResolvedValue({
@@ -208,9 +208,7 @@ describe('authentication flow characterization', () => {
 
     await dashboard.ngOnInit();
 
-    expect(axios.get).toHaveBeenCalledWith('http://localhost:8000/api/tasks?owner=student', {
-      headers: { Authorization: 'Bearer test-token' }
-    });
+    expect(axios.get).toHaveBeenCalledWith('/api/tasks?owner=student', { withCredentials: true });
     expect(dashboard.visibleTasks.map((task) => task.title)).toEqual(['Low task', 'High task']);
     expect(dashboard.visibleTasks.map((task) => task.label)).toEqual(['LOW · STUDENT', 'HIGH · STUDENT']);
     expect(dashboard.loading).toBe(false);
@@ -218,7 +216,7 @@ describe('authentication flow characterization', () => {
     expect(dashboard.loading).toBe(false);
   });
 
-  it('redirects to login without requesting tasks when no token exists', async () => {
+  it('redirects to login without requesting tasks when no session exists', async () => {
     const dashboard = createDashboardComponent();
 
     await dashboard.ngOnInit();

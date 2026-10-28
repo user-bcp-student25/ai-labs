@@ -4,7 +4,7 @@ import { environment } from '../../environments/environment';
 import type { AuthenticatedUser, LoginRequest, LoginResponse, UserPreferences } from '../models/auth.models';
 import { getApiErrorMessage } from '../utils/api-error';
 
-const TOKEN_STORAGE_KEY = 'workshop_token';
+const LEGACY_TOKEN_STORAGE_KEY = 'workshop_token';
 const USER_STORAGE_KEY = 'workshop_user';
 const PREFERENCES_STORAGE_KEY = 'workshop_preferences';
 const LOGIN_TIMEOUT_MS = 5000;
@@ -23,13 +23,13 @@ export class AuthService {
     return response.data;
   }
 
-  saveSession(token: string, user: AuthenticatedUser): void {
-    localStorage.setItem(TOKEN_STORAGE_KEY, token);
+  saveSession(user: AuthenticatedUser): void {
+    localStorage.removeItem(LEGACY_TOKEN_STORAGE_KEY);
     localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
   }
 
-  getToken(): string | null {
-    return localStorage.getItem(TOKEN_STORAGE_KEY);
+  hasSession(): boolean {
+    return this.getUser() !== null;
   }
 
   getUser(): AuthenticatedUser | null {
@@ -65,7 +65,7 @@ export class AuthService {
   }
 
   clearSession(): void {
-    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    localStorage.removeItem(LEGACY_TOKEN_STORAGE_KEY);
     localStorage.removeItem(USER_STORAGE_KEY);
   }
 

@@ -16,6 +16,9 @@ import java.util.Map;
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
 public class AuthResource {
+    static final String SESSION_COOKIE_NAME = "workshop_session";
+    static final int SESSION_TTL_SECONDS = 3600;
+
     @Inject
     LegacyDatabase database;
 
@@ -38,15 +41,16 @@ public class AuthResource {
                         } else {
                             String token = LegacyTokenUtil.create(user.username(), user.role());
                             Map<String, Object> response = new HashMap<>();
-                            response.put("token", token);
-                            response.put("expiresIn", 3600);
+                            response.put("expiresIn", SESSION_TTL_SECONDS);
                             response.put("user", Map.of(
                                     "username", user.username(),
                                     "displayName", StringEscapeUtils.escapeHtml4(user.displayName()),
                                     "role", user.role()
                             ));
                             response.put("debug", "authenticated-with-legacy-flow");
-                            return Response.ok(response).build();
+                            return Response.ok(response)
+                                    .header("Set-Cookie", buildSessionCookie(token))
+                                    .build();
                         }
                     }
                 }
@@ -57,5 +61,12 @@ public class AuthResource {
                     "exception", error.getClass().getName()
             )).build();
         }
+    }
+
+    // HttpOnly keeps the token away from page scripts; SameSite=Strict limits cross-site sending.
+    private static String buildSessionCookie(String token) {
+        return SESSION_COOKIE_NAME + "=" + token
+                + "; Path=/; Max-Age=" + SESSION_TTL_SECONDS
+                + "; HttpOnly; SameSite=Strict";
     }
 }
