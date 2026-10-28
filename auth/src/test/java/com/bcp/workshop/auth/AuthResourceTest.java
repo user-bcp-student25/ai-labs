@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.notNullValue;
 
 @QuarkusTest
@@ -18,6 +19,9 @@ class AuthResourceTest {
                 .then()
                 .statusCode(200)
                 .body("user.username", is("student"))
-                .body("token", notNullValue());
+                .body("token", nullValue())
+                .cookie("workshop_session", notNullValue())
+                .header("Set-Cookie", org.hamcrest.Matchers.containsString("HttpOnly"))
+                .header("Set-Cookie", org.hamcrest.Matchers.containsString("SameSite=Strict"));
     }
 }

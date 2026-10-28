@@ -43,12 +43,7 @@ export class LoginComponent {
         password: this.password,
         client: AUTH_CLIENT_ID
       });
-      if (!response.token) {
-        this.message = { title: 'El backend respondió sin token.' };
-        return;
-      }
-
-      this.authService.saveSession(response.token, response.user);
+      this.authService.saveSession(response.user);
       this.authService.savePreferences(this.preferences);
       await this.router.navigate(['/dashboard']);
     } catch (error: unknown) {
