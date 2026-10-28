@@ -8,10 +8,10 @@ const TASKS_ERROR_FALLBACK = 'No se pudo cargar el dashboard';
 
 @Injectable({ providedIn: 'root' })
 export class TasksService {
-  async getTasks(username: string, token: string): Promise<Task[]> {
+  async getTasks(username: string): Promise<Task[]> {
     try {
       const response = await axios.get<Task[]>(`${environment.tasksApiUrl}?owner=${username}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        withCredentials: true
       });
       return response.data;
     } catch (error: unknown) {

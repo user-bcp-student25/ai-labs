@@ -56,3 +56,18 @@ def test_rejects_invalid_token(tmp_path: Path) -> None:
     with TestClient(app) as client:
         response = client.get("/api/tasks", headers={"Authorization": "Bearer invalid"})
     assert response.status_code == 401
+
+
+def test_accepts_session_cookie_when_no_header_is_sent(tmp_path: Path) -> None:
+    app = create_app(str(tmp_path / "workshop.db"), str(tmp_path / "uploads"))
+    with TestClient(app) as client:
+        response = client.get("/api/tasks", cookies={"workshop_session": token()})
+    assert response.status_code == 200
+    assert len(response.json()) == 2
+
+
+def test_rejects_invalid_session_cookie(tmp_path: Path) -> None:
+    app = create_app(str(tmp_path / "workshop.db"), str(tmp_path / "uploads"))
+    with TestClient(app) as client:
+        response = client.get("/api/tasks", cookies={"workshop_session": "bm90LXZhbGlk"})
+    assert response.status_code == 401

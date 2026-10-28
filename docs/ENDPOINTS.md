@@ -10,7 +10,7 @@ Este documento describe el contrato observado en el cliente Angular de `web/`; n
 | Acordado con backend | No verificado. No hay especificacion backend disponible en este workspace y no se probaron servicios. |
 | Riesgos pendientes | Token en `localStorage` (H-WEB-01), mensajes de error que pueden exponer texto del backend (H-WEB-03), y dominio/orden de prioridades sin confirmar (H-WEB-08). |
 
-Las URLs actuales, tanto en desarrollo como en la configuracion de produccion, son `http://localhost:8080/auth/login` y `http://localhost:8000/api/tasks` (`web/src/environments/environment.ts:3`, `web/src/environments/environment.ts:4`, `web/src/environments/environment.production.ts:3`, `web/src/environments/environment.production.ts:4`). Confirmar los destinos antes de desplegar fuera del laboratorio local.
+Las URLs del cliente son relativas y same-origin: `/auth/login` y `/api/tasks`. En desarrollo `ng serve` las reenvia mediante `web/proxy.conf.json` a `localhost:8080` y `localhost:8000`; en nginx las reenvia `web/nginx.conf`. Antes: `http://localhost:8080/auth/login` y `http://localhost:8000/api/tasks` (`web/src/environments/environment.ts:3`, `web/src/environments/environment.ts:4`, `web/src/environments/environment.production.ts:3`, `web/src/environments/environment.production.ts:4`). Confirmar los destinos antes de desplegar fuera del laboratorio local.
 
 # Login: `POST /auth/login`
 
@@ -22,7 +22,7 @@ Las URLs actuales, tanto en desarrollo como en la configuracion de produccion, s
 
 | Parte | Campo | Valor observado | Evidencia |
 |---|---|---|---|
-| Metodo/URL | `POST` | `http://localhost:8080/auth/login` | `web/src/environments/environment.ts:3` |
+| Metodo/URL | `POST` | `/auth/login` (relativa, same-origin) | `web/src/environments/environment.ts` |
 | Header | `Authorization` | No se configura para login | `web/src/app/services/auth.service.ts:19`, `web/src/app/services/auth.service.ts:20` |
 | Headers | Otros | No se indican headers en la configuracion de esta llamada. Axios serializa el objeto; el codigo no verifica los headers efectivos en el cable. | `web/src/app/services/auth.service.ts:19`, `web/src/app/services/auth.service.ts:20` |
 | Body | `username` | Valor escrito por el usuario; se recorta para validar que no este vacio, pero se envia el valor original | `web/src/app/login/login.component.ts:30`, `web/src/app/login/login.component.ts:42`, `web/src/app/models/auth.models.ts:2` |
@@ -50,7 +50,7 @@ Axios debe resolver la peticion. `AuthService` devuelve `response.data` como `Lo
 
 | Campo | Tipo declarado | Uso observado |
 |---|---|---|
-| `token` | `string`, opcional en la interfaz | Si esta presente, se guarda mediante `AuthService`. |
+| `token` | Ya no se envia en el cuerpo (H-WEB-01). | La sesion viaja en la cookie `workshop_session` (`HttpOnly`, `SameSite=Strict`, `Path=/`, `Max-Age=3600`), emitida en el header `Set-Cookie`. El cliente no puede leerla. |
 | `user.username` | `string`, requerido por el modelo | Se conserva en sesion y se envia luego como `owner`. |
 | `user.displayName` | `string`, opcional | Se muestra en dashboard si existe; si no, se muestra `username`. |
 | `user.role` | `string`, opcional | No se observa uso en la UI. |
@@ -69,7 +69,7 @@ Ejemplo exitoso de la caracterizacion:
 
 La respuesta de ejemplo proviene del fixture de test (`web/src/app/authentication-flow.spec.ts:61`, `web/src/app/authentication-flow.spec.ts:63-64`); no se presenta como una captura de un backend real.
 
-Si hay token, el cliente guarda token/usuario y preferencias y navega a `/dashboard` (`web/src/app/login/login.component.ts:51`, `web/src/app/login/login.component.ts:52`). El formato, expiracion y claims del token no se especifican en el frontend.
+Si la respuesta incluye `user`, el cliente guarda solo el usuario y preferencias (sin token en `localStorage`) y navega a `/dashboard` (`web/src/app/login/login.component.ts:51`, `web/src/app/login/login.component.ts:52`). El formato, expiracion y claims del token no se especifican en el frontend.
 
 ## 4. Como reacciona ante errores
 
@@ -88,7 +88,7 @@ El detalle se interpola como texto, no con `[innerHTML]` (`web/src/app/login/log
 ## 5. Notas de seguridad
 
 - La contrasena se envia por HTTP a localhost en la configuracion actual. Es un entorno local de laboratorio; no se debe asumir que es seguro para redes externas. Confirmar HTTPS y URLs de despliegue.
-- `AuthService` centraliza la sesion, pero almacena token y usuario en `localStorage`, accesible a JavaScript del mismo origen. H-WEB-01 sigue pendiente (`web/src/app/services/auth.service.ts:26`, `web/src/app/services/auth.service.ts:27`, `web/src/app/services/auth.service.ts:31`).
+- `AuthService` guarda solo el usuario en `localStorage`; el token vive en la cookie `HttpOnly` y no es accesible desde JavaScript. H-WEB-01 se atiende con este cambio (pendiente de revision humana) (`web/src/app/services/auth.service.ts:26`, `web/src/app/services/auth.service.ts:27`, `web/src/app/services/auth.service.ts:31`).
 - `client` es un identificador fijo publico, no un secreto cliente.
 - No se observa HTML dinamico en el mensaje de login; Angular interpola el titulo y detalle como texto.
 
