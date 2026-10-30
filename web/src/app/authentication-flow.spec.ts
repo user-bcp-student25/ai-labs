@@ -51,6 +51,15 @@ describe('authentication flow characterization', () => {
     );
   }
 
+  function stubDocumentCookie() {
+    const readCookie = vi.fn(() => '');
+    const writeCookie = vi.fn();
+    const documentStub = {};
+    Object.defineProperty(documentStub, 'cookie', { get: readCookie, set: writeCookie });
+    vi.stubGlobal('document', documentStub);
+    return { readCookie, writeCookie };
+  }
+
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -102,6 +111,13 @@ describe('authentication flow characterization', () => {
   });
 
   it('saves only the user after login because the session credential is an HttpOnly cookie', async () => {
+    const sessionStorage = {
+      getItem: vi.fn(),
+      setItem: vi.fn(),
+      removeItem: vi.fn()
+    };
+    vi.stubGlobal('sessionStorage', sessionStorage);
+    const cookie = stubDocumentCookie();
     vi.mocked(axios.post).mockResolvedValue({ data: { user: { username: 'student' } } } as never);
     const login = createLoginComponent();
     login.username = 'student';
@@ -112,6 +128,10 @@ describe('authentication flow characterization', () => {
     expect(login.message).toBeNull();
     expect(storedValues.has('workshop_token')).toBe(false);
     expect(storedValues.get('workshop_user')).toBe(JSON.stringify({ username: 'student' }));
+    expect([...storedValues.keys()].sort()).toEqual(['workshop_preferences', 'workshop_user']);
+    expect(sessionStorage.setItem).not.toHaveBeenCalled();
+    expect(cookie.readCookie).not.toHaveBeenCalled();
+    expect(cookie.writeCookie).not.toHaveBeenCalled();
     expect(router.navigate).toHaveBeenCalledWith(['/dashboard']);
   });
 
@@ -195,7 +215,6 @@ describe('authentication flow characterization', () => {
   });
 
   it('loads tasks with the session cookie and preserves filtering and ordering', async () => {
-    storedValues.set('workshop_token', 'test-token');
     storedValues.set('workshop_user', JSON.stringify({ username: 'student' }));
     vi.mocked(axios.get).mockResolvedValue({
       data: [
@@ -209,6 +228,7 @@ describe('authentication flow characterization', () => {
     await dashboard.ngOnInit();
 
     expect(axios.get).toHaveBeenCalledWith('/api/tasks?owner=student', { withCredentials: true });
+  expect(storedValues.has('workshop_token')).toBe(false);
     expect(dashboard.visibleTasks.map((task) => task.title)).toEqual(['Low task', 'High task']);
     expect(dashboard.visibleTasks.map((task) => task.label)).toEqual(['LOW · STUDENT', 'HIGH · STUDENT']);
     expect(dashboard.loading).toBe(false);
@@ -258,6 +278,7 @@ describe('authentication flow characterization', () => {
   });
 
   it('clears token and user on logout while retaining preferences', async () => {
+    const cookie = stubDocumentCookie();
     storedValues.set('workshop_token', 'test-token');
     storedValues.set('workshop_user', JSON.stringify({ username: 'student' }));
     storedValues.set('workshop_preferences', JSON.stringify({ compact: true }));
@@ -268,7 +289,35 @@ describe('authentication flow characterization', () => {
     expect(storedValues.has('workshop_token')).toBe(false);
     expect(storedValues.has('workshop_user')).toBe(false);
     expect(storedValues.get('workshop_preferences')).toBe(JSON.stringify({ compact: true }));
+    expect(cookie.readCookie).not.toHaveBeenCalled();
+    expect(cookie.writeCookie).not.toHaveBeenCalled();
     expect(router.navigate).toHaveBeenCalledWith(['/login']);
+  });
+
+  it('does not log or persist the session cookie value during login, task loading, or logout', async () => {
+    const cookieValue = 'test-only-value';
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.mocked(axios.post).mockResolvedValue({
+      data: { user: { username: 'student' } },
+      headers: { 'set-cookie': `workshop_session=${cookieValue}; HttpOnly; Path=/` }
+    } as never);
+    const login = createLoginComponent();
+    login.username = 'student';
+    login.password = 'password';
+
+    await login.login();
+
+    vi.mocked(axios.get).mockResolvedValue({ data: [] } as never);
+    const dashboard = createDashboardComponent();
+    await dashboard.ngOnInit();
+    await dashboard.logout();
+
+    const loggedOutput = JSON.stringify([...log.mock.calls, ...error.mock.calls], (_key, value) =>
+      value instanceof Error ? value.message : value
+    );
+    expect(loggedOutput).not.toContain(cookieValue);
+    expect([...storedValues.values()].some((value) => value.includes(cookieValue))).toBe(false);
   });
 
   it('formats missing task data with the observed defaults', () => {
