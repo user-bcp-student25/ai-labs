@@ -25,3 +25,29 @@
 | `GET /api/backend-health` | Token Bearer. | Objeto con `requestedBy`, `status` y `body`; ante una excepción, `status` es `0` y `body` contiene su texto. |
 
 El token observado se decodifica como Base64 y se interpreta como cuatro partes delimitadas por `|`; se comprueba un secreto y una expiración, pero no una firma, emisor o audiencia (`api/app/main.py:14-25`). En `/api/tasks` y `/api/summary`, `owner` de la petición puede prevalecer sobre el usuario del token (`api/app/main.py:67-70,90-93`). Estos comportamientos son riesgos pendientes, no contratos de autorización acordados.
+
+## Candidatos adicionales de API
+
+### H-API-08 — Política CORS amplia con credenciales
+- Estado: CANDIDATO
+- Evidencia: `api/app/main.py:47-54` configura `allow_origins=["*"]`, `allow_credentials=True`, `allow_methods=["*"]` y `allow_headers=["*"]`.
+- Impacto: podría habilitar solicitudes y lectura cross-origin desde orígenes no previstos; el alcance real depende de los mecanismos de autenticación y del contexto de despliegue. No se verificó un exploit.
+- Prioridad propuesta: Media.
+- Contrato potencialmente afectado: política de acceso del navegador a todas las rutas de la API y uso de credenciales en solicitudes cross-origin.
+- Cómo validarlo: con una prueba de preflight de `TestClient` que use un `Origin` no confiable, comprobar `Access-Control-Allow-Origin`, `Access-Control-Allow-Credentials`, métodos y headers; acordar una lista de orígenes esperada antes de definir el resultado correcto.
+
+### H-API-09 — Creación de tareas acepta valores sin restricciones de dominio
+- Estado: CANDIDATO
+- Evidencia: `api/app/main.py:81-95` convierte los campos con `str()` y los persiste sin validar longitud, valores permitidos de `status`/`priority` ni título vacío. `api/tests/test_api.py:123-132` confirma que un objeto vacío se acepta con HTTP 201 y `title=""`.
+- Impacto: entradas inesperadas pueden persistirse y aparecer como estados o prioridades no estandarizados en el resumen, dificultando la consistencia de datos y el uso de los resultados por consumidores.
+- Prioridad propuesta: Media.
+- Contrato potencialmente afectado: entradas y respuesta de `POST /api/tasks`, y el contenido de `byStatus`/`highPriorityOpen` de `GET /api/summary`.
+- Cómo validarlo: acordar campos obligatorios, longitudes y vocabularios permitidos; añadir pruebas de borde para título vacío, cadenas extensas y estados/prioridades desconocidos, verificando el código HTTP y la respuesta esperados.
+
+### H-API-10 — Fallo del servicio upstream se representa con HTTP 200
+- Estado: CANDIDATO
+- Evidencia: `api/app/main.py:128-134` devuelve la respuesta del endpoint con `status` igual a `0` y el texto de la excepción en `body`, sin cambiar el status HTTP de la API. `api/tests/test_api.py:190-202` comprueba ese comportamiento para una excepción simulada `OSError("offline")`.
+- Impacto: clientes o monitores que evalúen únicamente el status HTTP pueden interpretar como éxito una comprobación cuyo upstream está caído; también se expone al cliente el texto de la excepción.
+- Prioridad propuesta: Media.
+- Contrato potencialmente afectado: status HTTP y campos `status`/`body` de `GET /api/backend-health`.
+- Cómo validarlo: ejecutar la prueba existente con el upstream simulado como fallido y probar un monitor que solo lea el status HTTP; acordar si el contrato debe usar un status HTTP de error o exigir que el consumidor interprete el campo JSON `status`.
