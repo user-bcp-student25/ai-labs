@@ -47,10 +47,10 @@ def create_app(db_path: str | None = None, upload_dir: str | None = None) -> Fas
     app.state.upload_dir = selected_uploads
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_origins=["http://localhost:4200"],
+        allow_credentials=False,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Authorization", "Content-Type"],
     )
 
     def as_task(row: sqlite3.Row) -> dict[str, Any]:
