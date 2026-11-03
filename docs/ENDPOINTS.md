@@ -8,6 +8,10 @@ Base URL local documentada en `README.md`: `http://localhost:8000`.
 - **Acordado:** no se encontró un contrato API previo ni evidencia de un acuerdo externo distinto. Este documento registra el comportamiento actual, no una aprobación de cambios futuros.
 - **Riesgos pendientes:** la autenticación usa un token Base64 modificable, el cliente puede seleccionar `owner` y la carga no limita ni normaliza el archivo. Véanse las notas de seguridad de cada ruta y `HALLAZGOS.md`.
 
+## CORS
+
+Las solicitudes de navegador se permiten desde `http://localhost:4200`. La API permite los métodos `GET` y `POST` y los headers `Authorization` y `Content-Type`; no habilita credenciales cross-origin. Los clientes que no sean navegadores no están sujetos a esta política CORS.
+
 ## Autenticación común
 
 Todas las rutas documentadas requieren este header:
